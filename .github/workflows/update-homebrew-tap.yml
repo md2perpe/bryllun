@@ -40,6 +40,8 @@ jobs:
           sed -i -E "s/(intel:[[:space:]]*)\"[a-f0-9]{64}\"/\1\"$INTEL_SHA\"/" "$CASK"
 
       - name: Commit and push
+        env:
+          VERSION: ${{ steps.sha.outputs.version }}
         run: |
           cd homebrew-tap
           git config user.name "github-actions[bot]"
@@ -49,5 +51,5 @@ jobs:
             exit 0
           fi
           git add Casks/bryllun.rb
-          git commit -m "bryllun ${{ steps.sha.outputs.version }}"
+          git commit -m "bryllun ${VERSION}"
           git push
