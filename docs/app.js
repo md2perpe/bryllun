@@ -1,4 +1,4 @@
-const REPO = "md2perpe/snmp-browser";
+const REPO = "md2perpe/bryllun";
 
 async function detectPlatform() {
   const ua = navigator.userAgent;

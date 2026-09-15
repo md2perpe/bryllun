@@ -1,4 +1,4 @@
-# SNMP MIB Client — Usage Guide
+# Bryllun — Usage Guide
 
 A desktop app (macOS, Windows, Linux) for browsing MIB and YANG files and
 polling live values from SNMP- and gNMI-managed devices (switches, routers,
@@ -7,7 +7,7 @@ informs.
 
 ## Installing
 
-1. Open the `.dmg` file and drag **SNMP MIB Client** into **Applications**.
+1. Open the `.dmg` file and drag **Bryllun** into **Applications**.
 2. On first launch, macOS will likely refuse to open it with an "Apple could
    not verify this app is free of malware" warning — the app isn't signed
    with a paid Apple Developer certificate. To open it anyway:

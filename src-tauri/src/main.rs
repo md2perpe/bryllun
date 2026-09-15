@@ -2,5 +2,5 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
 fn main() {
-    snmp_mib_client_lib::run()
+    bryllun_lib::run()
 }

@@ -1,10 +1,10 @@
 [package]
-name = "snmp-mib-client"
+name = "bryllun"
 version = "0.1.6"
 description = "A Tauri App"
 authors = ["you"]
 edition = "2021"
-default-run = "snmp-mib-client"
+default-run = "bryllun"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
@@ -12,7 +12,7 @@ default-run = "snmp-mib-client"
 # The `_lib` suffix may seem redundant but it is necessary
 # to make the lib name unique and wouldn't conflict with the bin name.
 # This seems to be only an issue on Windows, see https://github.com/rust-lang/cargo/issues/8519
-name = "snmp_mib_client_lib"
+name = "bryllun_lib"
 crate-type = ["staticlib", "cdylib", "rlib"]
 
 [build-dependencies]
