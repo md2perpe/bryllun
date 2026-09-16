@@ -1,4 +1,4 @@
-# SNMP MIB Client
+# Bryllun
 
 A desktop app for browsing MIB and YANG files and polling live values from SNMP-, gNMI-, and NETCONF-managed devices — switches, routers, and similar network equipment.
 

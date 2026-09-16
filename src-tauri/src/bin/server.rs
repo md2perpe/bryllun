@@ -4,8 +4,8 @@
 //! `invoke_handler` over a single JSON endpoint, `POST /api/invoke/:cmd`,
 //! with CORS enabled so a Vite dev server on a different port can call it.
 
+use bryllun_lib::{gnmi, mib, netconf, settings, snmp, trap, yang};
 use serde_json::{json, Value};
-use snmp_mib_client_lib::{gnmi, mib, netconf, settings, snmp, trap, yang};
 use std::io::Read;
 use std::path::PathBuf;
 use std::sync::{Arc, Mutex};
@@ -28,11 +28,11 @@ impl AppState {
 
 fn default_settings_path() -> PathBuf {
     let home = std::env::var("HOME").or_else(|_| std::env::var("USERPROFILE")).unwrap_or_else(|_| ".".into());
-    PathBuf::from(home).join(".snmp-mib-client").join("settings.json")
+    PathBuf::from(home).join(".bryllun").join("settings.json")
 }
 
 fn allowed_origins() -> Vec<String> {
-    std::env::var("SNMP_MIB_CLIENT_ALLOWED_ORIGINS")
+    std::env::var("BRYLLUN_ALLOWED_ORIGINS")
         .unwrap_or_else(|_| "http://localhost:5173,http://127.0.0.1:5173,http://localhost:4173,http://127.0.0.1:4173".to_string())
         .split(',')
         .map(str::trim)
@@ -465,7 +465,7 @@ fn main() {
     let rt = Arc::new(tokio::runtime::Runtime::new().expect("failed to start the async runtime for gNMI commands"));
 
     let server = Server::http(("127.0.0.1", port)).expect("failed to bind HTTP server");
-    println!("SNMP MIB Client standalone backend listening on http://127.0.0.1:{port}");
+    println!("Bryllun standalone backend listening on http://127.0.0.1:{port}");
     println!("Settings file: {}", state.settings_path.display());
 
     for request in server.incoming_requests() {

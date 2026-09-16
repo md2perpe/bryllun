@@ -254,7 +254,7 @@ pub(crate) fn collect_files(
 /// # Examples
 ///
 /// ```
-/// use snmp_mib_client_lib::mib::parse_directories;
+/// use bryllun_lib::mib::parse_directories;
 ///
 /// let result = parse_directories(&[]);
 /// assert!(result.errors.is_empty());

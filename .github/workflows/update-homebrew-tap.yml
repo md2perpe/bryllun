@@ -14,8 +14,8 @@ jobs:
         run: |
           VERSION="${GITHUB_REF_NAME#v}"
           BASE="https://github.com/${{ github.repository }}/releases/download/${GITHUB_REF_NAME}"
-          curl -sL -o arm64.dmg "$BASE/SNMP.MIB.Client_${VERSION}_aarch64.dmg"
-          curl -sL -o x64.dmg "$BASE/SNMP.MIB.Client_${VERSION}_x64.dmg"
+          curl -sL -o arm64.dmg "$BASE/Bryllun_${VERSION}_aarch64.dmg"
+          curl -sL -o x64.dmg "$BASE/Bryllun_${VERSION}_x64.dmg"
           echo "version=$VERSION" >> "$GITHUB_OUTPUT"
           echo "arm_sha=$(sha256sum arm64.dmg | cut -d' ' -f1)" >> "$GITHUB_OUTPUT"
           echo "intel_sha=$(sha256sum x64.dmg | cut -d' ' -f1)" >> "$GITHUB_OUTPUT"
@@ -34,12 +34,14 @@ jobs:
           INTEL_SHA: ${{ steps.sha.outputs.intel_sha }}
         run: |
           cd homebrew-tap
-          CASK=Casks/snmp-mib-client.rb
+          CASK=Casks/bryllun.rb
           sed -i -E "s/version \"[^\"]*\"/version \"$VERSION\"/" "$CASK"
           sed -i -E "s/(arm:[[:space:]]*)\"[a-f0-9]{64}\"/\1\"$ARM_SHA\"/" "$CASK"
           sed -i -E "s/(intel:[[:space:]]*)\"[a-f0-9]{64}\"/\1\"$INTEL_SHA\"/" "$CASK"
 
       - name: Commit and push
+        env:
+          VERSION: ${{ steps.sha.outputs.version }}
         run: |
           cd homebrew-tap
           git config user.name "github-actions[bot]"
@@ -48,6 +50,6 @@ jobs:
             echo "No changes to commit"
             exit 0
           fi
-          git add Casks/snmp-mib-client.rb
-          git commit -m "snmp-mib-client ${{ steps.sha.outputs.version }}"
+          git add Casks/bryllun.rb
+          git commit -m "bryllun ${VERSION}"
           git push
