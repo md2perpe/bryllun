@@ -122,7 +122,7 @@ fn build_security(config: &TrapListenerConfig) -> Option<v3::Security> {
 /// Longest-prefix-match `oid` against `index` (see `mib::build_oid_index`), returning e.g.
 /// `"ifDescr.3"` for a table column instance, `"sysDescr.0"` for a scalar, or the raw dotted
 /// OID unchanged if nothing in the configured MIB directories covers it.
-fn resolve_oid(index: &[(String, String)], oid: &str) -> String {
+pub(crate) fn resolve_oid(index: &[(String, String)], oid: &str) -> String {
     for (base, name) in index {
         if oid == base {
             return name.clone();
@@ -139,7 +139,7 @@ fn resolve_oid(index: &[(String, String)], oid: &str) -> String {
 /// Longest-prefix-match `oid` against a `ValueHintIndex` (see `mib::build_value_hint_index`),
 /// the same walk `resolve_oid` does against the name index, returning that symbol's
 /// DISPLAY-HINT/enum labels or `None`/empty if `oid` isn't covered by one.
-fn resolve_value_hint(index: &ValueHintIndex, oid: &str) -> (Option<String>, HashMap<String, String>) {
+pub(crate) fn resolve_value_hint(index: &ValueHintIndex, oid: &str) -> (Option<String>, HashMap<String, String>) {
     for (base, hint, enum_values) in index {
         let matches = oid == base || oid.strip_prefix(base.as_str()).is_some_and(|rest| rest.starts_with('.'));
         if matches {

@@ -117,6 +117,9 @@ export interface RowMetaEntry {
 
 export type ColWidths = Record<string, number>;
 
+/** What a query tab's Fetch runs: a table walk (or scalar GET) picked by the node's type, or an explicit single GET/GETNEXT. */
+export type SnmpOp = "fetch" | "get" | "getnext";
+
 export interface TabState {
   kind: "query";
   id: string;
@@ -129,6 +132,8 @@ export interface TabState {
   v3Auth: string;
   v3Priv: string;
   selectedNode: string;
+  /** Set to "get"/"getnext" by the tree's context menu; plain "fetch" otherwise. */
+  snmpOp: SnmpOp;
   /** Column order from the last successful fetch; empty until the first fetch. */
   columns: string[];
   /** DISPLAY-HINT per column that has one (e.g. "d-1"), from the last successful fetch. */

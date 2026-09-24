@@ -65,6 +65,20 @@ instead and choose "Open in new tab" from the context menu. Right-clicking
 a table offers the same item. Any resolvable node, groups included, also
 offers "Benchmark" from that menu — see [below](#6-benchmark-a-walk).
 
+The same menu sends a single SNMP request for one object:
+
+- **Get** (scalars such as `sysDescr`) fetches the scalar's `.0` instance.
+- **GetNext** (any resolvable node) fetches whatever the agent has next:
+  on a scalar that's the object after it (`sysObjectID.0` after
+  `sysDescr`), and on a group, table or column it's the first instance
+  underneath.
+
+The result shows up as a single row with the returned object's name, its
+OID and its value. It goes to the active tab when that tab is already
+showing a Get/GetNext result or is empty; otherwise it opens a new tab. The
+tab's **Fetch** button becomes **Get** or **GetNext**, so you can repeat
+the request (or auto-refresh it).
+
 ### 3. Set the connection details
 
 Each tab has its own connection fields at the top:
@@ -189,7 +203,8 @@ values the same way query tabs do; **Clear** empties the log.
 
 - Double-clicking a table in the sidebar opens it in a new tab in the active
   pane; right-click any resolvable node for "Open in new tab" (scalars and
-  tables) or "Benchmark" (any resolvable node, groups included).
+  tables), "Get" (scalars), "GetNext" or "Benchmark" (any resolvable node,
+  groups included).
 - The two icons at the right of a pane's tab bar open a new **trap
   listener** or **gNMI** tab in that pane, independent of the sidebar tree.
 - **×** on a tab closes it.

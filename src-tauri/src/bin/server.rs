@@ -359,6 +359,25 @@ fn handle(state: &AppState, rt: &tokio::runtime::Runtime, cmd: &str, args: &Valu
             result.map(|r| serde_json::to_value(&r).unwrap()).map_err(|e| (400, e))
         }
 
+        "snmp_get" => {
+            let node_id = args.get("nodeId").and_then(Value::as_str).ok_or((400, "missing 'nodeId'".to_string()))?.to_string();
+            let op: snmp::SingleOp = serde_json::from_value(args.get("op").cloned().ok_or((400, "missing 'op'".to_string()))?)
+                .map_err(|e| (400, e.to_string()))?;
+            let connection: snmp::ConnectionParams = serde_json::from_value(
+                args.get("connection").cloned().ok_or((400, "missing 'connection'".to_string()))?,
+            )
+            .map_err(|e| (400, e.to_string()))?;
+
+            let dirs = state.settings.lock().unwrap().active_profile().map(|p| p.dirs.clone()).unwrap_or_default();
+            let mut cache = state.last_parse.lock().unwrap();
+            if cache.is_none() {
+                *cache = Some(mib::parse_directories(&dirs));
+            }
+            snmp::get_single(&connection, cache.as_ref().unwrap(), &node_id, op)
+                .map(|r| serde_json::to_value(&r).unwrap())
+                .map_err(|e| (400, e))
+        }
+
         "walk_timed" => {
             let oid = args.get("oid").and_then(Value::as_str).ok_or((400, "missing 'oid'".to_string()))?.to_string();
             let connection: snmp::ConnectionParams = serde_json::from_value(

@@ -353,6 +353,16 @@ fn fetch(state: State<AppState>, node_id: String, connection: snmp::ConnectionPa
 }
 
 #[tauri::command]
+fn snmp_get(state: State<AppState>, node_id: String, op: snmp::SingleOp, connection: snmp::ConnectionParams) -> Result<snmp::FetchResult, String> {
+    let dirs = state.settings.lock().unwrap().active_profile().map(|p| p.dirs.clone()).unwrap_or_default();
+    let mut cache = state.last_parse.lock().unwrap();
+    if cache.is_none() {
+        *cache = Some(mib::parse_directories(&dirs));
+    }
+    snmp::get_single(&connection, cache.as_ref().unwrap(), &node_id, op)
+}
+
+#[tauri::command]
 fn walk_timed(oid: String, connection: snmp::ConnectionParams) -> Result<snmp::WalkTiming, String> {
     snmp::walk_timed(&connection, &oid)
 }
@@ -472,6 +482,7 @@ pub fn run() {
             list_host_profiles,
             get_mib_tree,
             fetch,
+            snmp_get,
             walk_timed,
             start_trap_listener,
             stop_trap_listener,

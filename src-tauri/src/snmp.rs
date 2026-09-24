@@ -1,6 +1,7 @@
 //! Real SNMP GET / table-walk support, built on the `snmp2` crate.
 
-use crate::mib::{ColumnInfo, TableInfo};
+use crate::mib::{build_oid_index, ColumnInfo, NodeKind, ParseResult, TableInfo};
+use crate::trap::{resolve_oid, resolve_value_hint};
 use serde::{Deserialize, Serialize};
 use snmp2::{v3, Oid, SyncSession, Value};
 use std::collections::HashMap;
@@ -123,6 +124,62 @@ pub fn fetch_scalar(params: &ConnectionParams, oid_str: &str) -> Result<FetchRes
         row.insert("Value".to_string(), format_value(&v, &[]));
     }
     Ok(FetchResult { columns: vec!["Value".to_string()], rows: vec![row], display_hints: HashMap::new(), enum_labels: HashMap::new() })
+}
+
+/// Which single-varbind request `get_single` sends.
+#[derive(Deserialize, Clone, Copy, PartialEq, Eq)]
+#[serde(rename_all = "lowercase")]
+pub enum SingleOp {
+    Get,
+    GetNext,
+}
+
+/// One GET or GETNEXT on a single MIB node - for poking at one object (e.g. `sysDescr`)
+/// rather than walking a whole table. A scalar's request targets its `.0` instance, so
+/// GETNEXT returns the object after it (`sysObjectID.0` for `sysDescr`). Any other node (a
+/// group, a table or one of its columns) has no instance of its own, so GETNEXT targets its
+/// bare OID and returns the first instance under it, and GET isn't offered at all.
+///
+/// The one result row names the returned OID against the parsed MIB tree, since after a
+/// GETNEXT it's the agent, not the request, that decides which object comes back.
+pub fn get_single(params: &ConnectionParams, parsed: &ParseResult, node_id: &str, op: SingleOp) -> Result<FetchResult, String> {
+    let symbol = parsed.symbols.get(node_id).ok_or_else(|| format!("unknown OID node '{node_id}'"))?;
+    if !symbol.resolved {
+        return Err(format!("'{node_id}' could not be resolved to an absolute OID"));
+    }
+    // Table columns are parsed as scalar-shaped OBJECT-TYPEs too; only the table's own
+    // definition says they aren't standalone scalars with a `.0` instance.
+    let is_column = parsed.tables.values().any(|t| t.columns.iter().any(|c| c.name == node_id));
+    let is_scalar = symbol.kind == NodeKind::Scalar && !is_column;
+    if op == SingleOp::Get && !is_scalar {
+        return Err(format!("'{node_id}' isn't a scalar, so it has no single instance to GET - use GETNEXT instead"));
+    }
+
+    let target = if is_scalar { format!("{}.0", symbol.oid) } else { symbol.oid.clone() };
+    let oid = oid_from_dotted(&target)?;
+    let mut sess = open_session(params)?;
+    let pdu = match op {
+        SingleOp::Get => sess.get(&oid),
+        SingleOp::GetNext => sess.getnext(&oid),
+    }
+    .map_err(|e| e.to_string())?;
+    let (got_oid, value) = pdu.varbinds.clone().next().ok_or("the agent's response carried no varbind")?;
+
+    let oid_s = got_oid.to_id_string();
+    let name = resolve_oid(&build_oid_index(&parsed.tree), &oid_s);
+    let (display_hint, enum_labels) = resolve_value_hint(&parsed.value_hints, &oid_s);
+    let row = HashMap::from([
+        ("Name".to_string(), name),
+        ("OID".to_string(), oid_s),
+        // Raw, like `fetch_table`'s rows - the frontend applies the hint/labels on top.
+        ("Value".to_string(), format_value(&value, &[])),
+    ]);
+    Ok(FetchResult {
+        columns: vec!["Name".to_string(), "OID".to_string(), "Value".to_string()],
+        rows: vec![row],
+        display_hints: display_hint.map(|h| HashMap::from([("Value".to_string(), h)])).unwrap_or_default(),
+        enum_labels: if enum_labels.is_empty() { HashMap::new() } else { HashMap::from([("Value".to_string(), enum_labels)]) },
+    })
 }
 
 pub fn fetch_table(params: &ConnectionParams, table: &TableInfo) -> Result<FetchResult, String> {

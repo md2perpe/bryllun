@@ -571,6 +571,14 @@ function mibTreeContextMenuItems(store: Store, nodeId: string): HTMLElement[] {
       ]),
     );
   }
+  if (node && store.canFetch(node, "get")) {
+    items.push(el("button", { class: "context-menu-item", onclick: () => void store.runSingleOp(nodeId, "get") }, [`Get "${node.label}"`]));
+  }
+  if (node && store.canFetch(node, "getnext")) {
+    items.push(
+      el("button", { class: "context-menu-item", onclick: () => void store.runSingleOp(nodeId, "getnext") }, [`GetNext "${node.label}"`]),
+    );
+  }
   if (store.canBenchmark(node)) {
     items.push(
       el("button", { class: "context-menu-item", onclick: () => store.openBenchmarkTab(nodeId) }, [
@@ -768,7 +776,8 @@ function renderTabBar(store: Store, pane: PaneState): HTMLElement {
       dotClass += tab.fetchError ? " error" : "";
     } else {
       const host = store.hostProfiles.find((h) => h.id === tab.hostId);
-      label = (host ? host.label : tab.hostAddr || "(no address)") + " · " + tab.selectedNode;
+      const op = tab.snmpOp === "get" ? "Get " : tab.snmpOp === "getnext" ? "GetNext " : "";
+      label = (host ? host.label : tab.hostAddr || "(no address)") + " · " + op + tab.selectedNode;
     }
     return el(
       "div",
@@ -909,8 +918,8 @@ function renderToolbar(store: Store, pane: PaneState, tab: TabState): HTMLElemen
   }
 
   const selectedNode = store.findNode(store.activeTree(), tab.selectedNode);
-  const canFetch = store.canFetch(selectedNode) && store.hasCompleteConnection(tab);
-  const fetchDisabledReason = !store.canFetch(selectedNode)
+  const canFetch = store.canFetch(selectedNode, tab.snmpOp) && store.hasCompleteConnection(tab);
+  const fetchDisabledReason = !store.canFetch(selectedNode, tab.snmpOp)
     ? "Select a resolvable scalar or table in the tree first"
     : !store.hasCompleteConnection(tab)
       ? "Fill in the host address, port, and " + (tab.version === "v3" ? "security user" : "community") + " first"
@@ -927,7 +936,7 @@ function renderToolbar(store: Store, pane: PaneState, tab: TabState): HTMLElemen
           title: fetchDisabledReason,
           onclick: () => store.manualFetch(pane.id),
         },
-        ["Fetch"],
+        [tab.snmpOp === "get" ? "Get" : tab.snmpOp === "getnext" ? "GetNext" : "Fetch"],
       ),
       el(
         "button",
