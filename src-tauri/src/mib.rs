@@ -98,8 +98,8 @@ pub struct ParseResult {
     pub symbols: HashMap<String, SymbolInfo>,
     pub errors: Vec<FileErrors>,
     pub dir_files: Vec<DirFiles>,
-    /// Not sent to the frontend (see `ValueHintIndex`) - only consumed server-side when starting
-    /// a trap listener.
+    /// Not sent to the frontend (see `ValueHintIndex`) - only consumed server-side, when starting
+    /// a trap listener or labeling a single GET/GETNEXT result (`snmp::get_single`).
     #[serde(skip)]
     pub value_hints: ValueHintIndex,
 }

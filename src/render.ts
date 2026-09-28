@@ -571,6 +571,14 @@ function mibTreeContextMenuItems(store: Store, nodeId: string): HTMLElement[] {
       ]),
     );
   }
+  if (node && store.canFetch(node, "get")) {
+    items.push(el("button", { class: "context-menu-item", onclick: () => void store.runSingleOp(nodeId, "get") }, [`Get "${node.label}"`]));
+  }
+  if (node && store.canFetch(node, "getnext")) {
+    items.push(
+      el("button", { class: "context-menu-item", onclick: () => void store.runSingleOp(nodeId, "getnext") }, [`GetNext "${node.label}"`]),
+    );
+  }
   if (store.canBenchmark(node)) {
     items.push(
       el("button", { class: "context-menu-item", onclick: () => store.openBenchmarkTab(nodeId) }, [
@@ -768,7 +776,8 @@ function renderTabBar(store: Store, pane: PaneState): HTMLElement {
       dotClass += tab.fetchError ? " error" : "";
     } else {
       const host = store.hostProfiles.find((h) => h.id === tab.hostId);
-      label = (host ? host.label : tab.hostAddr || "(no address)") + " · " + tab.selectedNode;
+      const op = tab.snmpOp === "get" ? "Get " : tab.snmpOp === "getnext" ? "GetNext " : "";
+      label = (host ? host.label : tab.hostAddr || "(no address)") + " · " + op + tab.selectedNode;
     }
     return el(
       "div",
@@ -908,9 +917,9 @@ function renderToolbar(store: Store, pane: PaneState, tab: TabState): HTMLElemen
     );
   }
 
-  const selectedNode = store.findNode(store.activeTree(), tab.selectedNode);
-  const canFetch = store.canFetch(selectedNode) && store.hasCompleteConnection(tab);
-  const fetchDisabledReason = !store.canFetch(selectedNode)
+  const selectedNode = store.findTabNode(tab);
+  const canFetch = store.canFetch(selectedNode, tab.snmpOp) && store.hasCompleteConnection(tab);
+  const fetchDisabledReason = !store.canFetch(selectedNode, tab.snmpOp)
     ? "Select a resolvable scalar or table in the tree first"
     : !store.hasCompleteConnection(tab)
       ? "Fill in the host address, port, and " + (tab.version === "v3" ? "security user" : "community") + " first"
@@ -927,7 +936,7 @@ function renderToolbar(store: Store, pane: PaneState, tab: TabState): HTMLElemen
           title: fetchDisabledReason,
           onclick: () => store.manualFetch(pane.id),
         },
-        ["Fetch"],
+        [tab.snmpOp === "get" ? "Get" : tab.snmpOp === "getnext" ? "GetNext" : "Fetch"],
       ),
       el(
         "button",
@@ -948,7 +957,7 @@ function renderToolbar(store: Store, pane: PaneState, tab: TabState): HTMLElemen
 }
 
 function renderTableToolbar(store: Store, pane: PaneState, tab: TabState): HTMLElement {
-  const node = store.findNode(store.activeTree(), tab.selectedNode);
+  const node = store.findTabNode(tab);
   const label = node ? node.label : "(nothing selected)";
   const oid = node ? node.oid || "(unresolved)" : "";
 
@@ -1034,7 +1043,7 @@ function renderExportMenu(store: Store): HTMLElement | null {
   const pane = store.getPane(menu.paneId);
   const tab = pane && store.getPaneActiveTab(pane);
   if (!pane || !tab || tab.kind !== "query" || tab.columns.length === 0) return null;
-  const node = store.findNode(store.activeTree(), tab.selectedNode);
+  const node = store.findTabNode(tab);
   const labelHint = node ? node.label : tab.selectedNode;
 
   const item = (label: string, fn: (store: Store, tab: TabState, labelHint: string) => Promise<void>) =>

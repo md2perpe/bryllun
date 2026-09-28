@@ -28,6 +28,7 @@ import type {
   Row,
   RowMetaEntry,
   SnmpVersion,
+  SnmpOp,
   TabState,
   Theme,
   TlsMode,
@@ -183,6 +184,8 @@ export class Store {
 
   private listeners: Array<() => void> = [];
   private tickListeners: Array<() => void> = [];
+  /** Latest `runFetch` started per tab, so a slower earlier request can't overwrite a newer one's result. */
+  private fetchSequence = new WeakMap<TabState, number>();
   private autoRefreshTimers = new Map<string, ReturnType<typeof setInterval>>();
   /** Epoch ms of each auto-refreshing tab's next fetch, for the countdown ring. */
   private autoRefreshNextAt = new Map<string, number>();
@@ -394,6 +397,7 @@ export class Store {
       v3Auth: "",
       v3Priv: "",
       selectedNode: "",
+      snmpOp: "fetch",
       columns: [],
       displayHints: {},
       enumLabels: {},
@@ -609,6 +613,29 @@ export class Store {
     this.state.selectedTreeNodeId = nodeId;
     this.pushNewTab(this.state.activePaneId, "h1", { selectedNode: nodeId });
     this.closeTreeContextMenu();
+  }
+
+  /**
+   * Runs a single GET or GETNEXT on a tree node, from its context menu. Lands in the active
+   * pane's query tab when that's already showing a GET/GETNEXT result (or nothing at all), so
+   * poking at a few scalars in a row doesn't leave a trail of tabs; otherwise opens a new one.
+   */
+  async runSingleOp(nodeId: string, op: Exclude<SnmpOp, "fetch">) {
+    this.closeTreeContextMenu();
+    this.state.selectedTreeNodeId = nodeId;
+    const pane = this.getPane(this.state.activePaneId);
+    if (!pane) return;
+    const active = this.getPaneActiveTab(pane);
+    if (active && active.kind === "query" && (active.snmpOp !== "fetch" || !active.selectedNode)) {
+      this.applyPatch(active, { selectedNode: nodeId, snmpOp: op, workingRows: [], rowMeta: {}, removedGhosts: [], fetchError: null });
+    } else {
+      this.pushNewTab(pane.id, "h1", { selectedNode: nodeId, snmpOp: op });
+    }
+    const tab = this.getPaneActiveTab(pane);
+    if (!tab || tab.kind !== "query") return;
+    this.notify();
+    await this.runFetch(tab);
+    this.notify();
   }
 
   private pushNewTab(paneId: string, defaultHostId: string, opts: Partial<TabState> = {}) {
@@ -1404,8 +1431,18 @@ export class Store {
     return tab.rowMeta[row[ROW_KEY_FIELD] ?? ""];
   }
 
-  canFetch(node: MibNode | null): boolean {
-    return !!node && node.type !== "group" && node.resolved;
+  canFetch(node: MibNode | null, op: SnmpOp = "fetch"): boolean {
+    if (!node || !node.resolved) return false;
+    if (op === "get") return node.type === "scalar" && !this.isTableColumn(node.id);
+    if (op === "getnext") return !!node.oid;
+    return node.type !== "group";
+  }
+
+  /** Whether a "scalar" node is really one of a table's columns - it has no `.0` instance to GET. */
+  isTableColumn(nodeId: string): boolean {
+    const hasColumn = (nodes: MibNode[]): boolean =>
+      nodes.some((n) => (n.type === "table" && !!n.children?.some((c) => c.id === nodeId)) || (!!n.children && hasColumn(n.children)));
+    return hasColumn(this.tree);
   }
 
   /** A tab's connection fields in the shape the backend commands expect - shared by query and benchmark tabs, which carry the same fields independently. */
@@ -1511,9 +1548,21 @@ export class Store {
     this.notify();
   }
 
+  /**
+   * A query tab's node, looked up in the full MIB tree rather than `activeTree()` - a tab keeps
+   * working after the sidebar switches to Tables mode, which leaves out groups and standalone scalars.
+   */
+  findTabNode(tab: TabState): MibNode | null {
+    return this.findNode(this.tree, tab.selectedNode);
+  }
+
   private async runFetch(tab: TabState) {
-    const node = this.findNode(this.activeTree(), tab.selectedNode);
-    if (!this.canFetch(node)) {
+    const requestId = (this.fetchSequence.get(tab) ?? 0) + 1;
+    this.fetchSequence.set(tab, requestId);
+    const isLatest = () => this.fetchSequence.get(tab) === requestId;
+
+    const node = this.findTabNode(tab);
+    if (!this.canFetch(node, tab.snmpOp)) {
       tab.fetchError = node ? `'${node.label}' can't be fetched` : "Select an OID first";
       return;
     }
@@ -1528,10 +1577,12 @@ export class Store {
         rows: Row[];
         displayHints: Record<string, string>;
         enumLabels: Record<string, Record<string, string>>;
-      }>("fetch", {
+      }>(tab.snmpOp === "fetch" ? "fetch" : "snmp_get", {
         nodeId: tab.selectedNode,
+        ...(tab.snmpOp === "fetch" ? {} : { op: tab.snmpOp }),
         connection: this.connectionOf(tab),
       });
+      if (!isLatest()) return;
       if (tab.diffMode) {
         const { meta, removed } = this.computeRowDiff(tab.workingRows, result.rows);
         tab.workingRows = result.rows;
@@ -1548,6 +1599,7 @@ export class Store {
       if (!tab.columns.includes(tab.sortCol)) tab.sortCol = tab.columns[0] ?? ROW_KEY_FIELD;
       tab.fetchError = null;
     } catch (e) {
+      if (!isLatest()) return;
       tab.fetchError = String(e);
     }
     tab.lastFetch = new Date().toLocaleTimeString();
