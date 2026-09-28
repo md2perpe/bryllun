@@ -184,6 +184,8 @@ export class Store {
 
   private listeners: Array<() => void> = [];
   private tickListeners: Array<() => void> = [];
+  /** Latest `runFetch` started per tab, so a slower earlier request can't overwrite a newer one's result. */
+  private fetchSequence = new WeakMap<TabState, number>();
   private autoRefreshTimers = new Map<string, ReturnType<typeof setInterval>>();
   /** Epoch ms of each auto-refreshing tab's next fetch, for the countdown ring. */
   private autoRefreshNextAt = new Map<string, number>();
@@ -1440,7 +1442,7 @@ export class Store {
   isTableColumn(nodeId: string): boolean {
     const hasColumn = (nodes: MibNode[]): boolean =>
       nodes.some((n) => (n.type === "table" && !!n.children?.some((c) => c.id === nodeId)) || (!!n.children && hasColumn(n.children)));
-    return hasColumn(this.activeTree());
+    return hasColumn(this.tree);
   }
 
   /** A tab's connection fields in the shape the backend commands expect - shared by query and benchmark tabs, which carry the same fields independently. */
@@ -1546,8 +1548,20 @@ export class Store {
     this.notify();
   }
 
+  /**
+   * A query tab's node, looked up in the full MIB tree rather than `activeTree()` - a tab keeps
+   * working after the sidebar switches to Tables mode, which leaves out groups and standalone scalars.
+   */
+  findTabNode(tab: TabState): MibNode | null {
+    return this.findNode(this.tree, tab.selectedNode);
+  }
+
   private async runFetch(tab: TabState) {
-    const node = this.findNode(this.activeTree(), tab.selectedNode);
+    const requestId = (this.fetchSequence.get(tab) ?? 0) + 1;
+    this.fetchSequence.set(tab, requestId);
+    const isLatest = () => this.fetchSequence.get(tab) === requestId;
+
+    const node = this.findTabNode(tab);
     if (!this.canFetch(node, tab.snmpOp)) {
       tab.fetchError = node ? `'${node.label}' can't be fetched` : "Select an OID first";
       return;
@@ -1568,6 +1582,7 @@ export class Store {
         ...(tab.snmpOp === "fetch" ? {} : { op: tab.snmpOp }),
         connection: this.connectionOf(tab),
       });
+      if (!isLatest()) return;
       if (tab.diffMode) {
         const { meta, removed } = this.computeRowDiff(tab.workingRows, result.rows);
         tab.workingRows = result.rows;
@@ -1584,6 +1599,7 @@ export class Store {
       if (!tab.columns.includes(tab.sortCol)) tab.sortCol = tab.columns[0] ?? ROW_KEY_FIELD;
       tab.fetchError = null;
     } catch (e) {
+      if (!isLatest()) return;
       tab.fetchError = String(e);
     }
     tab.lastFetch = new Date().toLocaleTimeString();

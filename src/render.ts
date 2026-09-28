@@ -917,7 +917,7 @@ function renderToolbar(store: Store, pane: PaneState, tab: TabState): HTMLElemen
     );
   }
 
-  const selectedNode = store.findNode(store.activeTree(), tab.selectedNode);
+  const selectedNode = store.findTabNode(tab);
   const canFetch = store.canFetch(selectedNode, tab.snmpOp) && store.hasCompleteConnection(tab);
   const fetchDisabledReason = !store.canFetch(selectedNode, tab.snmpOp)
     ? "Select a resolvable scalar or table in the tree first"
@@ -957,7 +957,7 @@ function renderToolbar(store: Store, pane: PaneState, tab: TabState): HTMLElemen
 }
 
 function renderTableToolbar(store: Store, pane: PaneState, tab: TabState): HTMLElement {
-  const node = store.findNode(store.activeTree(), tab.selectedNode);
+  const node = store.findTabNode(tab);
   const label = node ? node.label : "(nothing selected)";
   const oid = node ? node.oid || "(unresolved)" : "";
 
@@ -1043,7 +1043,7 @@ function renderExportMenu(store: Store): HTMLElement | null {
   const pane = store.getPane(menu.paneId);
   const tab = pane && store.getPaneActiveTab(pane);
   if (!pane || !tab || tab.kind !== "query" || tab.columns.length === 0) return null;
-  const node = store.findNode(store.activeTree(), tab.selectedNode);
+  const node = store.findTabNode(tab);
   const labelHint = node ? node.label : tab.selectedNode;
 
   const item = (label: string, fn: (store: Store, tab: TabState, labelHint: string) => Promise<void>) =>
